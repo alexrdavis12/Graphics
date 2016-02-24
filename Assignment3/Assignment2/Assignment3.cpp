@@ -35,6 +35,9 @@ setFramebuffer commands alone, though.
 float framebuffer[ImageH][ImageW][3];
 PolygonManager pm;
 bool definingNewPolygon = true;
+bool clippingMode = false;
+bool leftclicked = false;
+ClippingWindow cwindow;
 struct color {
 	float r, g, b;		// Color (R,G,B values)
 };
@@ -109,43 +112,74 @@ void mouse(int button, int state, int x, int y)
 {
 	switch (button) {
 		case GLUT_LEFT_BUTTON:
-			//std::cout << "Left mouse button clicked\n";
-			if (state == GLUT_DOWN) {//UP && leftwasdown
-				//leftwasdown = false;
-				//std::cout << "begin adding new point\n";
-				if (definingNewPolygon)
-				{
-					//std::cout << "starting definition of new polygon";
-					if(pm.newPolygon(Point(x, y)))
-						definingNewPolygon = false;
-					else
-						std::cout << "You can only define 10 polygons";
+			if (state == GLUT_DOWN) {
+				if (!clippingMode) {
+					//std::cout << "begin adding new point\n";
+					if (definingNewPolygon)
+					{
+						//std::cout << "starting definition of new polygon";
+						if (pm.newPolygon(Point(x, y)))
+							definingNewPolygon = false;
+						else
+							std::cout << "You can only define 10 polygons";
+					}
+					else if (!pm.addPoint(Point(x, y)))
+					{
+						std::cout << "You can only define 10 verticies";
+					}
 				}
-				else if (!pm.addPoint( Point(x, y)))
-				{
-					std::cout << "You can only define 10 verticies";
+				else { // clipping mode has been enabled
+					clearFramebuffer();
+					pm.redrawPolygons();
+					leftclicked = true;
+					cwindow = ClippingWindow(x, y);
 				}
 			}
-			//else if (state == GLUT_DOWN)
-			//{
-				//leftwasdown = true;
-			//}
+			else if (state == GLUT_UP)
+			{
+				if (clippingMode) {
+					leftclicked = false;
+					clearFramebuffer();
+					pm.redrawPolygons();
+					cwindow.updateDraw(x, y);
+					cwindow.finishDraw(x, y);
+					//pm.clipPolygons(cwindow);  // commented out so that it would not segfault... was unable to fix before the deadline
+				}
+			}
 			break;
 		case GLUT_RIGHT_BUTTON:
 			if (state == GLUT_DOWN) {
 				//std::cout << "ending the current polygon\n";
 				if (!definingNewPolygon) // cannot end a polygon that has not been started
 				{
+					
 					pm.endPolygon(Point(x, y));
 					definingNewPolygon = true;
 				}
+				else
+					std::cout << "you must start a polygon before it can be ended\n";
 			}
 	}
 }
 
 void keyboard(unsigned char key, int x, int y)
 {
+	switch (key) {
+	case 'c':
+		clippingMode = !clippingMode; //use the c key to toggle clipping mode
+		break;
+	default:
+		break;
+	}
+}
 
+void trackLocs(int x, int y)
+{
+	if (leftclicked) {
+		clearFramebuffer();
+		pm.redrawPolygons();
+		cwindow.updateDraw(x, y);
+	}
 }
 
 int main(int argc, char** argv)
@@ -159,6 +193,7 @@ int main(int argc, char** argv)
 	glutDisplayFunc(display);
 	glutMouseFunc(mouse);
 	glutKeyboardFunc(keyboard);
+	glutMotionFunc(trackLocs);
 	glutIdleFunc(drawit);
 	glutMainLoop();
 	return 0;
